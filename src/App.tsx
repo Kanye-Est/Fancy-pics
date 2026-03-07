@@ -46,31 +46,62 @@ const shellVertexShader = `
   attribute float randomOffset;
   attribute float shapeIndex;
   attribute float surfaceV;
-  
+
   uniform float time;
   uniform float scatterProgress;
-  
+
   varying vec2 vUv;
   varying float vScatter;
   varying float vShapeIndex;
   varying float vSurfaceV;
-  
+  varying float vTrailFade;
+
   void main() {
     vUv = uv;
     vScatter = scatterProgress;
     vShapeIndex = shapeIndex;
     vSurfaceV = surfaceV;
-    
-    vec4 basePos = instanceMatrix * vec4(position, 1.0);
-    
-    vec3 scatteredPos = targetPos;
-    scatteredPos.y += sin(time * 1.0 + randomOffset) * 2.0;
-    scatteredPos.x += cos(time * 0.8 + randomOffset) * 2.0;
-    scatteredPos.z += sin(time * 0.9 + randomOffset) * 2.0;
-    
-    vec3 finalPos = mix(basePos.xyz, scatteredPos, scatterProgress);
-    
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(finalPos, 1.0);
+    vTrailFade = 1.0;
+
+    // Instance center and vertex offset (keeps particle size during scatter)
+    vec3 instanceCenter = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vec3 vertexOffset = (instanceMatrix * vec4(position, 1.0)).xyz - instanceCenter;
+
+    // Scattered center with flowing motion
+    vec3 scatteredCenter = targetPos;
+    scatteredCenter.x += cos(time * 0.8 + randomOffset) * 2.0;
+    scatteredCenter.y += sin(time * 1.0 + randomOffset) * 2.0;
+    scatteredCenter.z += sin(time * 0.9 + randomOffset) * 2.0;
+
+    vec3 center = mix(instanceCenter, scatteredCenter, scatterProgress);
+
+    if (scatterProgress > 0.01) {
+      // Analytical velocity (derivative of position)
+      vec3 vel;
+      vel.x = -sin(time * 0.8 + randomOffset) * 1.6;
+      vel.y =  cos(time * 1.0 + randomOffset) * 2.0;
+      vel.z =  cos(time * 0.9 + randomOffset) * 1.8;
+
+      float speed = length(vel);
+      vec3 velDir = speed > 0.001 ? vel / speed : vec3(0.0, 1.0, 0.0);
+
+      // Build comet-aligned axes
+      vec3 worldUp = abs(velDir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+      vec3 right = normalize(cross(worldUp, velDir));
+
+      // Stretch along velocity for comet tail
+      float stretch = 1.0 + speed * 4.0;
+      vec3 cometOffset = right * position.x + velDir * position.y * stretch;
+
+      // Trail fade: 0 at tail, 1 at head
+      vTrailFade = clamp(position.y / 0.075 * 0.5 + 0.5, 0.0, 1.0);
+
+      // Smooth blend from shell orientation to comet orientation
+      vec3 finalOffset = mix(vertexOffset, cometOffset, scatterProgress);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(center + finalOffset, 1.0);
+    } else {
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(center + vertexOffset, 1.0);
+    }
   }
 `;
 
@@ -80,27 +111,37 @@ const shellFragmentShader = `
   varying float vScatter;
   varying float vShapeIndex;
   varying float vSurfaceV;
-  
+  varying float vTrailFade;
+
   void main() {
-    // Calculate UV for 2x2 atlas
+    // Atlas UV
     float col = mod(vShapeIndex, 2.0);
     float row = floor(vShapeIndex / 2.0);
     vec2 atlasUv = (vUv * 0.5) + vec2(col * 0.5, 0.5 - row * 0.5);
-    
+
     vec4 texColor = texture2D(atlas, atlasUv);
-    if (texColor.a < 0.1) discard;
-    
-    // Warm glowing color matching the reference image
-    // Use vSurfaceV to control the gradient of the shell
-    vec3 color = mix(vec3(1.0, 0.95, 0.8), vec3(1.0, 0.7, 0.4), vSurfaceV);
-    
-    // Make edges brighter
+
+    // Shell mode: warm golden color
+    vec3 shellColor = mix(vec3(1.0, 0.95, 0.8), vec3(1.0, 0.7, 0.4), vSurfaceV);
     float edgeGlow = pow(vSurfaceV, 2.0);
-    color += vec3(1.0, 0.8, 0.5) * edgeGlow * 0.8;
-    
-    // Also use vScatter to reduce alpha when scattered
-    float alpha = mix(0.8 + edgeGlow * 0.4, 0.3, vScatter) * texColor.a;
-    
+    shellColor += vec3(1.0, 0.8, 0.5) * edgeGlow * 0.8;
+    float shellAlpha = (0.8 + edgeGlow * 0.4) * texColor.a;
+
+    // Comet mode: bright head → warm fading tail
+    vec3 headColor = vec3(1.0, 0.95, 0.8);
+    vec3 tailColor = vec3(1.0, 0.5, 0.15);
+    vec3 cometColor = mix(tailColor, headColor, vTrailFade);
+    cometColor += vec3(0.3, 0.2, 0.05) * pow(vTrailFade, 2.0);
+    float cometAlpha = pow(vTrailFade, 0.6) * 0.8;
+
+    // Blend between shell and comet
+    vec3 color = mix(shellColor, cometColor, vScatter);
+    float alpha = mix(shellAlpha, cometAlpha, vScatter);
+
+    // Softer discard during scatter for smooth trails
+    float thresh = mix(0.1, 0.02, vScatter);
+    if (alpha < thresh) discard;
+
     gl_FragColor = vec4(color, alpha);
   }
 `;
