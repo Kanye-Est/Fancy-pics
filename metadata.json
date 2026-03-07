@@ -1,0 +1,7 @@
+{
+  "name": "Pearl & Shell Interactive",
+  "description": "A 3D interactive particle system featuring a glowing pearl inside a shell, controlled by hand gestures using MediaPipe.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
