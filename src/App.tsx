@@ -231,6 +231,8 @@ export default function App() {
       iridescence: 1.0, // Iridescence is perfect for pearls!
       iridescenceIOR: 1.5,
       iridescenceThicknessRange: [100, 400],
+      transparent: true,
+      opacity: 1,
     });
     const pearl = new THREE.Mesh(pearlGeo, pearlMat);
     pearl.position.set(0, -2, 0);
@@ -574,7 +576,12 @@ export default function App() {
       gsap.to(state, { shellOpenAngle: 0, duration: 1.5, ease: "power2.inOut" });
       gsap.to(state, { scatterProgress: 0, duration: 2, ease: "power2.inOut" });
       gsap.to(state, { bloomIntensity: 0.2, duration: 1 });
-      
+
+      // Fade pearl back in
+      if (pearlRef.current) {
+        gsap.to(pearlRef.current.material, { opacity: 1, duration: 1.5 });
+      }
+
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
           gsap.to((child as THREE.Mesh).material, { opacity: 0, duration: 1 });
@@ -592,7 +599,12 @@ export default function App() {
       gsap.to(state, { shellOpenAngle: (Math.PI / 180) * 60, duration: 2, ease: "power2.inOut" });
       gsap.to(state, { scatterProgress: 0, duration: 2, ease: "power2.inOut" });
       gsap.to(state, { bloomIntensity: 0.8, duration: 2 });
-      
+
+      // Fade out pearl as shell opens
+      if (pearlRef.current) {
+        gsap.to(pearlRef.current.material, { opacity: 0, duration: 1.5 });
+      }
+
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
           gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 2, delay: 1.5 });
@@ -603,7 +615,12 @@ export default function App() {
     else if (newState === 'SCATTERED') {
       gsap.to(state, { scatterProgress: 1, duration: 3, ease: "power2.inOut" });
       gsap.to(state, { bloomIntensity: 0.3, duration: 2 });
-      
+
+      // Hide pearl during scatter
+      if (pearlRef.current) {
+        gsap.to(pearlRef.current.material, { opacity: 0, duration: 1 });
+      }
+
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
           gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 2 });
