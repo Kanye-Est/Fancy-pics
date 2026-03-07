@@ -534,8 +534,9 @@ export default function App() {
         texture.colorSpace = THREE.SRGBColorSpace;
         const aspect = texture.image.width / texture.image.height;
         const geo = new THREE.PlaneGeometry(2 * aspect, 2);
-        const mat = new THREE.MeshBasicMaterial({ 
-          map: texture, 
+        const mat = new THREE.MeshBasicMaterial({
+          map: texture,
+          color: 0xaaaaaa, // Darken photos so bloom doesn't over-brighten them
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0.0,
