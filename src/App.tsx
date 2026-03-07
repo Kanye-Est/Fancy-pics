@@ -493,16 +493,7 @@ export default function App() {
         }
       }
       
-      // Selective bloom: particles/shell get bloom, photos render clean
-      camera.layers.set(0);
       composer.render();
-
-      camera.layers.set(1);
-      renderer.autoClear = false;
-      renderer.clearDepth();
-      renderer.render(scene, camera);
-      renderer.autoClear = true;
-      camera.layers.enableAll();
     };
     
     animate();
@@ -564,8 +555,7 @@ export default function App() {
           Math.sin(angle) * radius
         );
         mesh.lookAt(0,0,0);
-        mesh.layers.set(1); // Layer 1: render without bloom
-
+        
         group.add(mesh);
         
         if (stateRef.current.currentState === 'SCATTERED' || stateRef.current.currentState === 'PHOTO_ZOOM') {
