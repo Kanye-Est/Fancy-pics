@@ -485,23 +485,6 @@ export default function App() {
 
       // Animate Photos
       if (photoGroupRef.current) {
-        if (stateRef.current.currentState === 'SCATTERED') {
-          // Photos flow within the comet body
-          const tailDir = shellMat.uniforms.cometTailDir.value;
-          const count = photoGroupRef.current.children.length;
-          photoGroupRef.current.children.forEach((child, i) => {
-            const t = (i + 0.5) / (count + 1);
-            const dist = t * 18;
-            const spread = t * 3;
-            const tx = tailDir.x * dist + Math.sin(time * 0.7 + i * 2.5) * spread;
-            const ty = tailDir.y * dist + Math.cos(time * 0.5 + i * 1.8) * spread;
-            const tz = Math.sin(time * 0.3 + i * 3.2) * spread * 0.5;
-            child.position.x += (tx - child.position.x) * 0.04;
-            child.position.y += (ty - child.position.y) * 0.04;
-            child.position.z += (tz - child.position.z) * 0.04;
-            child.rotation.y += 0.003;
-          });
-        }
         // Gentle floating for zoomed photo
         const zData = zoomedPhotoDataRef.current;
         if (stateRef.current.currentState === 'PHOTO_ZOOM' && zData) {
@@ -685,10 +668,10 @@ export default function App() {
 
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
-          gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 2 });
+          gsap.to((child as THREE.Mesh).material, { opacity: 0, duration: 1.5 });
         });
       }
-      
+
       if (cameraRef.current && controlsRef.current) {
         isAnimatingCameraRef.current = true;
         gsap.to(cameraRef.current.position, { x: 0, y: 5, z: 50, duration: 2 });
