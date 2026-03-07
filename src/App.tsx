@@ -49,6 +49,7 @@ const shellVertexShader = `
 
   uniform float time;
   uniform float scatterProgress;
+  uniform vec3 cometTailDir;
 
   varying vec2 vUv;
   varying float vScatter;
@@ -63,44 +64,35 @@ const shellVertexShader = `
     vSurfaceV = surfaceV;
     vTrailFade = 1.0;
 
-    // Instance center and vertex offset (keeps particle size during scatter)
+    // Instance center and vertex offset (keeps particle size)
     vec3 instanceCenter = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 vertexOffset = (instanceMatrix * vec4(position, 1.0)).xyz - instanceCenter;
 
-    // Scattered center with flowing motion
-    vec3 scatteredCenter = targetPos;
-    scatteredCenter.x += cos(time * 0.8 + randomOffset) * 2.0;
-    scatteredCenter.y += sin(time * 1.0 + randomOffset) * 2.0;
-    scatteredCenter.z += sin(time * 0.9 + randomOffset) * 2.0;
-
-    vec3 center = mix(instanceCenter, scatteredCenter, scatterProgress);
-
     if (scatterProgress > 0.01) {
-      // Analytical velocity (derivative of position)
-      vec3 vel;
-      vel.x = -sin(time * 0.8 + randomOffset) * 1.6;
-      vel.y =  cos(time * 1.0 + randomOffset) * 2.0;
-      vel.z =  cos(time * 0.9 + randomOffset) * 1.8;
+      // --- All particles form ONE big comet ---
+      // t: each particle's position along the comet (0 = head, 1 = tail tip)
+      float t = fract(randomOffset / 6.28318);
+      float tailDist = pow(t, 1.5) * 35.0;
 
-      float speed = length(vel);
-      vec3 velDir = speed > 0.001 ? vel / speed : vec3(0.0, 1.0, 0.0);
+      // Lateral spread widens toward tail
+      float spread = t * 5.0;
+      vec3 spreadDir = normalize(targetPos);
 
-      // Build comet-aligned axes
-      vec3 worldUp = abs(velDir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
-      vec3 right = normalize(cross(worldUp, velDir));
+      // Comet body: head at origin, tail extends along cometTailDir
+      vec3 cometPos = cometTailDir * tailDist
+        + spreadDir * spread * (0.6 + 0.4 * sin(time * 0.5 + randomOffset));
 
-      // Stretch along velocity for comet tail
-      float stretch = 1.0 + speed * 4.0;
-      vec3 cometOffset = right * position.x + velDir * position.y * stretch;
+      // Trail fade for fragment shader: 1 at head, 0 at tail
+      vTrailFade = 1.0 - t;
 
-      // Trail fade: 0 at tail, 1 at head
-      vTrailFade = clamp(position.y / 0.075 * 0.5 + 0.5, 0.0, 1.0);
+      // Particle size: bigger at head, smaller at tail
+      float sizeScale = mix(1.5, 0.3, t);
+      vec3 scaledOffset = vertexOffset * mix(1.0, sizeScale, scatterProgress);
 
-      // Smooth blend from shell orientation to comet orientation
-      vec3 finalOffset = mix(vertexOffset, cometOffset, scatterProgress);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(center + finalOffset, 1.0);
+      vec3 center = mix(instanceCenter, cometPos, scatterProgress);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(center + scaledOffset, 1.0);
     } else {
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(center + vertexOffset, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(instanceCenter + vertexOffset, 1.0);
     }
   }
 `;
@@ -114,11 +106,9 @@ const shellFragmentShader = `
   varying float vTrailFade;
 
   void main() {
-    // Atlas UV
     float col = mod(vShapeIndex, 2.0);
     float row = floor(vShapeIndex / 2.0);
     vec2 atlasUv = (vUv * 0.5) + vec2(col * 0.5, 0.5 - row * 0.5);
-
     vec4 texColor = texture2D(atlas, atlasUv);
 
     // Shell mode: warm golden color
@@ -127,19 +117,19 @@ const shellFragmentShader = `
     shellColor += vec3(1.0, 0.8, 0.5) * edgeGlow * 0.8;
     float shellAlpha = (0.8 + edgeGlow * 0.4) * texColor.a;
 
-    // Comet mode: bright head → warm fading tail
-    vec3 headColor = vec3(1.0, 0.95, 0.8);
-    vec3 tailColor = vec3(1.0, 0.5, 0.15);
-    vec3 cometColor = mix(tailColor, headColor, vTrailFade);
-    cometColor += vec3(0.3, 0.2, 0.05) * pow(vTrailFade, 2.0);
-    float cometAlpha = pow(vTrailFade, 0.6) * 0.8;
+    // Comet mode: bright white head → orange mid → fading red tail
+    vec3 headColor = vec3(1.0, 1.0, 0.9);
+    vec3 midColor  = vec3(1.0, 0.7, 0.3);
+    vec3 tailColor = vec3(0.8, 0.25, 0.05);
+    vec3 cometColor = mix(tailColor, midColor, smoothstep(0.0, 0.5, vTrailFade));
+    cometColor = mix(cometColor, headColor, smoothstep(0.5, 1.0, vTrailFade));
+    cometColor += vec3(0.5, 0.4, 0.2) * pow(vTrailFade, 3.0);
+    float cometAlpha = pow(vTrailFade, 0.5) * 0.9 * texColor.a;
 
-    // Blend between shell and comet
     vec3 color = mix(shellColor, cometColor, vScatter);
     float alpha = mix(shellAlpha, cometAlpha, vScatter);
 
-    // Softer discard during scatter for smooth trails
-    float thresh = mix(0.1, 0.02, vScatter);
+    float thresh = mix(0.1, 0.01, vScatter);
     if (alpha < thresh) discard;
 
     gl_FragColor = vec4(color, alpha);
@@ -301,7 +291,8 @@ export default function App() {
       uniforms: {
         time: { value: 0 },
         scatterProgress: { value: 0 },
-        atlas: { value: atlasTex }
+        atlas: { value: atlasTex },
+        cometTailDir: { value: new THREE.Vector3(0, -1, 0) }
       },
       transparent: true,
       side: THREE.DoubleSide,
@@ -418,6 +409,7 @@ export default function App() {
     const clock = new THREE.Clock();
     
     let animFrameId: number;
+    const prevShellPos = new THREE.Vector3();
     const animate = () => {
       animFrameId = requestAnimationFrame(animate);
       
@@ -472,15 +464,44 @@ export default function App() {
         // Back shell opens backward
         lowerShellRef.current.rotation.x = -stateRef.current.shellOpenAngle;
       }
-      
+
+      // Update comet tail direction from shell movement velocity
+      if (shellGroupRef.current && stateRef.current.scatterProgress > 0.01) {
+        const sp = shellGroupRef.current.position;
+        const dx = sp.x - prevShellPos.x;
+        const dy = sp.y - prevShellPos.y;
+        const spd = Math.sqrt(dx * dx + dy * dy);
+
+        if (spd > 0.05) {
+          // Tail points opposite to movement direction
+          const tailVal = shellMat.uniforms.cometTailDir.value;
+          tailVal.x += ((-dx / spd) - tailVal.x) * 0.08;
+          tailVal.y += ((-dy / spd) - tailVal.y) * 0.08;
+          tailVal.normalize();
+        }
+
+        prevShellPos.set(sp.x, sp.y, sp.z);
+      }
+
       // Animate Photos
       if (photoGroupRef.current) {
-        photoGroupRef.current.children.forEach((child, i) => {
-          if (stateRef.current.currentState === 'SCATTERED') {
-            child.position.y += Math.sin(time + i) * 0.01;
-            child.rotation.y += 0.005;
-          }
-        });
+        if (stateRef.current.currentState === 'SCATTERED') {
+          // Photos flow within the comet body
+          const tailDir = shellMat.uniforms.cometTailDir.value;
+          const count = photoGroupRef.current.children.length;
+          photoGroupRef.current.children.forEach((child, i) => {
+            const t = (i + 0.5) / (count + 1);
+            const dist = t * 18;
+            const spread = t * 3;
+            const tx = tailDir.x * dist + Math.sin(time * 0.7 + i * 2.5) * spread;
+            const ty = tailDir.y * dist + Math.cos(time * 0.5 + i * 1.8) * spread;
+            const tz = Math.sin(time * 0.3 + i * 3.2) * spread * 0.5;
+            child.position.x += (tx - child.position.x) * 0.04;
+            child.position.y += (ty - child.position.y) * 0.04;
+            child.position.z += (tz - child.position.z) * 0.04;
+            child.rotation.y += 0.003;
+          });
+        }
         // Gentle floating for zoomed photo
         const zData = zoomedPhotoDataRef.current;
         if (stateRef.current.currentState === 'PHOTO_ZOOM' && zData) {
