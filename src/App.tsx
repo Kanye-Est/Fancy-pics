@@ -159,6 +159,12 @@ export default function App() {
   });
   
   const isAnimatingCameraRef = useRef(false);
+  const currentZoomIndexRef = useRef(0);
+  const zoomedPhotoDataRef = useRef<{
+    mesh: THREE.Mesh;
+    originalPosition: THREE.Vector3;
+    originalQuaternion: THREE.Quaternion;
+  } | null>(null);
 
   // Initialize Three.js
   useEffect(() => {
@@ -432,6 +438,12 @@ export default function App() {
             child.rotation.y += 0.005;
           }
         });
+        // Gentle floating for zoomed photo
+        const zData = zoomedPhotoDataRef.current;
+        if (stateRef.current.currentState === 'PHOTO_ZOOM' && zData) {
+          zData.mesh.position.y += Math.sin(time * 1.5) * 0.003;
+          zData.mesh.rotation.y = Math.sin(time * 0.8) * 0.03;
+        }
       }
       
       composer.render();
@@ -510,13 +522,40 @@ export default function App() {
     processedPhotosCount.current = photos.length;
   }, [photos]);
 
+  // Helper: put back zoomed photo to original position
+  const putBackZoomedPhoto = () => {
+    const data = zoomedPhotoDataRef.current;
+    if (!data) return;
+    const { mesh, originalPosition, originalQuaternion } = data;
+    gsap.to(mesh.position, {
+      x: originalPosition.x,
+      y: originalPosition.y,
+      z: originalPosition.z,
+      duration: 0.5,
+      ease: "power2.inOut"
+    });
+    gsap.to(mesh.quaternion, {
+      x: originalQuaternion.x,
+      y: originalQuaternion.y,
+      z: originalQuaternion.z,
+      w: originalQuaternion.w,
+      duration: 0.5,
+      ease: "power2.inOut"
+    });
+    gsap.to(mesh.scale, { x: 1, y: 1, z: 1, duration: 0.5, ease: "power2.inOut" });
+    gsap.to(mesh.material, { opacity: 0.8, duration: 0.5 });
+    zoomedPhotoDataRef.current = null;
+  };
+
   // Handle State Transitions
   const transitionTo = (newState: string) => {
     const state = stateRef.current;
     if (state.currentState === newState) return;
 
-    // Reset photo scales when leaving PHOTO_ZOOM
+    // Put back zoomed photo when leaving PHOTO_ZOOM
     if (state.currentState === 'PHOTO_ZOOM' && newState !== 'PHOTO_ZOOM') {
+      putBackZoomedPhoto();
+      // Restore all photo opacities
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
           gsap.to(child.scale, { x: 1, y: 1, z: 1, duration: 0.5 });
@@ -578,34 +617,49 @@ export default function App() {
       }
     }
     else if (newState === 'PHOTO_ZOOM') {
-      const handPos = handPositionRef.current;
-      const ndcX = -(handPos.x - 0.5) * 2;
-      const ndcY = -(handPos.y - 0.5) * 2;
+      // Lock shell to center
+      targetShellPositionRef.current = { x: 0, y: 0, z: 0 };
+      targetShellRotationRef.current = { x: 0, y: 0 };
 
-      let closestPhoto: THREE.Object3D | null = null;
-      let minDistance = Infinity;
+      const children = photoGroupRef.current!.children;
+      const count = children.length;
+      if (count === 0) return;
 
-      if (cameraRef.current && photoGroupRef.current) {
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cameraRef.current);
-        photoGroupRef.current.children.forEach(child => {
-          const dist = raycaster.ray.distanceToPoint(child.position);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestPhoto = child;
-          }
-        });
-      }
+      // Put back previous photo if any
+      putBackZoomedPhoto();
 
-      // Show all photos
-      photoGroupRef.current!.children.forEach(child => {
-        gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 1 });
+      // Get next photo in cycle
+      const index = currentZoomIndexRef.current % count;
+      currentZoomIndexRef.current = (index + 1) % count;
+      const photo = children[index] as THREE.Mesh;
+
+      // Save original transform
+      const originalPosition = photo.position.clone();
+      const originalQuaternion = photo.quaternion.clone();
+      zoomedPhotoDataRef.current = { mesh: photo, originalPosition, originalQuaternion };
+
+      // Show all photos at reduced opacity
+      children.forEach(child => {
+        gsap.to((child as THREE.Mesh).material, { opacity: 0.3, duration: 0.5 });
       });
 
-      // Enlarge closest photo (pinch-to-zoom effect)
-      if (closestPhoto) {
-        gsap.to(closestPhoto.scale, { x: 3, y: 3, z: 3, duration: 0.8, ease: "back.out(1.7)" });
-      }
+      // Shell is locked at origin with zero rotation, so local space ≈ world space.
+      // Place photo between shell (z=0) and camera (z≈40-50), facing +Z toward camera.
+      gsap.to(photo.position, {
+        x: 0, y: 0, z: 25,
+        duration: 0.8, ease: "back.out(1.4)"
+      });
+
+      // Reset rotation so the PlaneGeometry's front face (+Z) points toward the camera
+      gsap.to(photo.quaternion, {
+        x: 0, y: 0, z: 0, w: 1,
+        duration: 0.8, ease: "power2.out"
+      });
+
+      // Scale up the grabbed photo
+      gsap.to(photo.scale, { x: 4, y: 4, z: 4, duration: 0.8, ease: "back.out(1.7)" });
+      // Full opacity for the grabbed photo
+      gsap.to(photo.material, { opacity: 1, duration: 0.5 });
     }
   };
 
@@ -686,22 +740,27 @@ export default function App() {
             }
           }
 
-          // Update shell position to follow hand for all gestures
-          const posX = -(landmarks[9].x - 0.5) * 70;
-          const posY = -(landmarks[9].y - 0.5) * 50;
-          targetShellPositionRef.current = { x: posX, y: posY, z: 0 };
+          // In PHOTO_ZOOM: lock shell to center; otherwise follow hand
+          if (stateRef.current.currentState === 'PHOTO_ZOOM') {
+            targetShellPositionRef.current = { x: 0, y: 0, z: 0 };
+            targetShellRotationRef.current = { x: 0, y: 0 };
+          } else {
+            const posX = -(landmarks[9].x - 0.5) * 70;
+            const posY = -(landmarks[9].y - 0.5) * 50;
+            targetShellPositionRef.current = { x: posX, y: posY, z: 0 };
 
-          // Rotation follows hand position for all gestures (360° showcase)
-          const targetY = (landmarks[9].x - 0.5) * Math.PI * 2;
-          const targetX = (landmarks[9].y - 0.5) * Math.PI;
-          targetShellRotationRef.current = { x: targetX, y: targetY };
+            const targetY = (landmarks[9].x - 0.5) * Math.PI * 2;
+            const targetX = (landmarks[9].y - 0.5) * Math.PI;
+            targetShellRotationRef.current = { x: targetX, y: targetY };
+          }
 
           // Throttled debug log (point B)
           {
             const now = Date.now();
             if (now - lastDebugLogRef.current > 500) {
               lastDebugLogRef.current = now;
-              console.log('[DEBUG-B] hand position:', { posX: posX.toFixed(2), posY: posY.toFixed(2), landmark9: { x: landmarks[9].x.toFixed(3), y: landmarks[9].y.toFixed(3) } });
+              const tp = targetShellPositionRef.current;
+              console.log('[DEBUG-B] hand position:', { posX: tp.x.toFixed(2), posY: tp.y.toFixed(2), landmark9: { x: landmarks[9].x.toFixed(3), y: landmarks[9].y.toFixed(3) } });
             }
           }
 
