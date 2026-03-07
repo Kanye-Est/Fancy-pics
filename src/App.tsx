@@ -486,7 +486,7 @@ export default function App() {
       textureLoader.load(photoUrl, (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         const aspect = texture.image.width / texture.image.height;
-        const geo = new THREE.PlaneGeometry(3 * aspect, 3);
+        const geo = new THREE.PlaneGeometry(2 * aspect, 2);
         const mat = new THREE.MeshBasicMaterial({ 
           map: texture, 
           side: THREE.DoubleSide,
@@ -595,7 +595,7 @@ export default function App() {
       
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
-          gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 1.5 });
+          gsap.to((child as THREE.Mesh).material, { opacity: 1, duration: 2, delay: 1.5 });
         });
       }
 
