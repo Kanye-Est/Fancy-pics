@@ -72,10 +72,10 @@ const shellVertexShader = `
       // --- All particles form ONE big comet ---
       // t: each particle's position along the comet (0 = head, 1 = tail tip)
       float t = fract(randomOffset / 6.28318);
-      float tailDist = pow(t, 1.5) * 35.0;
+      float tailDist = pow(t, 1.5) * 55.0;
 
       // Lateral spread widens toward tail
-      float spread = t * 5.0;
+      float spread = t * 8.0;
       vec3 spreadDir = normalize(targetPos);
 
       // Comet body: head at origin, tail extends along cometTailDir
@@ -86,7 +86,7 @@ const shellVertexShader = `
       vTrailFade = 1.0 - t;
 
       // Particle size: bigger at head, smaller at tail
-      float sizeScale = mix(1.5, 0.3, t);
+      float sizeScale = mix(2.0, 0.3, t);
       vec3 scaledOffset = vertexOffset * mix(1.0, sizeScale, scatterProgress);
 
       vec3 center = mix(instanceCenter, cometPos, scatterProgress);
@@ -438,9 +438,9 @@ export default function App() {
 
       // Update Shell Position
       if (shellGroupRef.current) {
-        shellGroupRef.current.position.x += (targetShellPositionRef.current.x - shellGroupRef.current.position.x) * 0.1;
-        shellGroupRef.current.position.y += (targetShellPositionRef.current.y - shellGroupRef.current.position.y) * 0.1;
-        shellGroupRef.current.position.z += (targetShellPositionRef.current.z - shellGroupRef.current.position.z) * 0.1;
+        shellGroupRef.current.position.x += (targetShellPositionRef.current.x - shellGroupRef.current.position.x) * 0.2;
+        shellGroupRef.current.position.y += (targetShellPositionRef.current.y - shellGroupRef.current.position.y) * 0.2;
+        shellGroupRef.current.position.z += (targetShellPositionRef.current.z - shellGroupRef.current.position.z) * 0.2;
 
         // Throttled debug log (point C)
         const now = Date.now();
@@ -824,8 +824,8 @@ export default function App() {
             targetShellPositionRef.current = { x: 0, y: 0, z: 0 };
             targetShellRotationRef.current = { x: 0, y: 0 };
           } else {
-            const posX = -(landmarks[9].x - 0.5) * 70;
-            const posY = -(landmarks[9].y - 0.5) * 50;
+            const posX = -(landmarks[9].x - 0.5) * 110;
+            const posY = -(landmarks[9].y - 0.5) * 80;
             targetShellPositionRef.current = { x: posX, y: posY, z: 0 };
 
             const targetY = (landmarks[9].x - 0.5) * Math.PI * 2;
