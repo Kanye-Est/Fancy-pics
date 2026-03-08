@@ -559,7 +559,7 @@ export default function App() {
         
         group.add(mesh);
         
-        if (stateRef.current.currentState === 'SCATTERED' || stateRef.current.currentState === 'PHOTO_ZOOM') {
+        if (stateRef.current.currentState === 'PHOTO_ZOOM') {
           mat.opacity = 1; // Set directly to avoid animation issues on load
         }
       }, undefined, (err) => {
@@ -774,20 +774,26 @@ export default function App() {
           const ringExt = isExtended(16, 14);
           const pinkyExt = isExtended(20, 18);
 
-          const thumbIndexDist = getDist2D(landmarks[4], landmarks[8]) / palmSize;
-
           const allExt = indexExt && middleExt && ringExt && pinkyExt;
           const noneExt = !indexExt && !middleExt && !ringExt && !pinkyExt;
           const peaceExt = indexExt && middleExt && !ringExt && !pinkyExt;
 
           let detectedGesture = 'UNKNOWN';
 
-          if (thumbIndexDist < 0.3 && (middleExt || ringExt || pinkyExt)) {
-            detectedGesture = 'OK';
-          } else if (noneExt) {
+          const thumbFingerDists = [
+            getDist2D(landmarks[4], landmarks[8]),
+            getDist2D(landmarks[4], landmarks[12]),
+            getDist2D(landmarks[4], landmarks[16]),
+            getDist2D(landmarks[4], landmarks[20]),
+          ];
+          const minThumbFingerDist = Math.min(...thumbFingerDists) / palmSize;
+
+          if (noneExt) {
             detectedGesture = 'FIST';
           } else if (peaceExt) {
             detectedGesture = 'PEACE';
+          } else if (minThumbFingerDist < 0.3) {
+            detectedGesture = 'OK';
           } else if (allExt) {
             detectedGesture = 'OPEN';
           }
@@ -909,10 +915,30 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (gesture === 'FIST') transitionTo('CLOSED');
-    else if (gesture === 'PEACE') transitionTo('OPEN');
-    else if (gesture === 'OPEN') transitionTo('SCATTERED');
-    else if (gesture === 'OK') transitionTo('PHOTO_ZOOM');
+    const currentState = stateRef.current.currentState;
+
+    if (gesture === 'FIST') {
+      transitionTo('CLOSED');
+    } else if (currentState === 'PHOTO_ZOOM') {
+      // PHOTO_ZOOM 期间松手（OPEN）→ 放回照片，回到 OPEN 状态
+      if (gesture === 'OPEN') {
+        transitionTo('OPEN');
+      }
+      // 其他手势（PEACE 等）忽略，防止误触
+      return;
+    } else if (gesture === 'PEACE') {
+      transitionTo('OPEN');
+    } else if (gesture === 'OPEN') {
+      // 贝壳已打开时（OPEN 状态），OPEN 手势不做任何事（防止松手误触 SCATTERED）
+      // 仅从 CLOSED/其他状态才进入 SCATTERED
+      if (currentState !== 'OPEN') {
+        transitionTo('SCATTERED');
+      }
+    } else if (gesture === 'OK') {
+      if (currentState === 'OPEN') {
+        transitionTo('PHOTO_ZOOM');
+      }
+    }
   }, [gesture]);
 
   // Debug info update interval (200ms)
