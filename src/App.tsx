@@ -641,7 +641,9 @@ export default function App() {
       // When closing from OPEN/PHOTO_ZOOM, reverse the open sequence:
       // first fade out photos, then close shell and fade pearl back in
       const photosVisible = prevState === 'OPEN' || prevState === 'PHOTO_ZOOM';
+      const fromScattered = prevState === 'SCATTERED';
       const shellDelay = photosVisible ? 1.5 : 0;
+      const pearlDelay = fromScattered ? 2 : shellDelay;
 
       gsap.to(state, { shellOpenAngle: 0, duration: 1.5, delay: shellDelay, ease: "power2.inOut" });
       gsap.to(state, { scatterProgress: 0, duration: 2, ease: "power2.inOut" });
@@ -649,7 +651,10 @@ export default function App() {
 
       // Fade pearl back in (after photos are gone)
       if (pearlRef.current) {
-        gsap.to(pearlRef.current.material, { opacity: 1, duration: 1.5, delay: shellDelay });
+        gsap.killTweensOf(pearlRef.current.material, 'opacity');
+        pearlRef.current.visible = true;
+        pearlRef.current.material.opacity = 0;
+        gsap.to(pearlRef.current.material, { opacity: 1, duration: 1.5, delay: pearlDelay });
       }
 
       // Fade out photos first
@@ -675,7 +680,10 @@ export default function App() {
 
       // Fade out pearl as shell opens
       if (pearlRef.current) {
-        gsap.to(pearlRef.current.material, { opacity: 0, duration: 1.5 });
+        gsap.killTweensOf(pearlRef.current.material, 'opacity');
+        gsap.to(pearlRef.current.material, { opacity: 0, duration: 1.5, onComplete: () => {
+          if (pearlRef.current) pearlRef.current.visible = false;
+        }});
       }
 
       if (photoGroupRef.current) {
@@ -692,7 +700,9 @@ export default function App() {
 
       // Hide pearl during scatter
       if (pearlRef.current) {
-        gsap.to(pearlRef.current.material, { opacity: 0, duration: 1 });
+        gsap.killTweensOf(pearlRef.current.material, 'opacity');
+        pearlRef.current.material.opacity = 0;
+        pearlRef.current.visible = false;
       }
 
       if (photoGroupRef.current) {
