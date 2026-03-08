@@ -536,12 +536,12 @@ export default function App() {
         const geo = new THREE.PlaneGeometry(2 * aspect, 2);
         const mat = new THREE.MeshBasicMaterial({
           map: texture,
-          color: 0xaaaaaa, // Darken photos so bloom doesn't over-brighten them
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0.0,
           depthWrite: false, // Prevent z-fighting with particles
-          fog: false // Ensure photos are not hidden by the scene fog
+          fog: false, // Ensure photos are not hidden by the scene fog
+          toneMapped: false, // Preserve original photo colors, bypass bloom tone mapping
         });
         const mesh = new THREE.Mesh(geo, mat);
         
@@ -659,6 +659,7 @@ export default function App() {
 
     }
     else if (newState === 'SCATTERED') {
+      gsap.to(state, { shellOpenAngle: 0, duration: 1, ease: "power2.inOut" });
       gsap.to(state, { scatterProgress: 1, duration: 3, ease: "power2.inOut" });
       gsap.to(state, { bloomIntensity: 0.3, duration: 2 });
 
@@ -683,6 +684,10 @@ export default function App() {
       // Lock shell to center
       targetShellPositionRef.current = { x: 0, y: 0, z: 0 };
       targetShellRotationRef.current = { x: 0, y: 0 };
+
+      // Force shell into OPEN shape (not closed, not scattered)
+      gsap.to(state, { shellOpenAngle: (Math.PI / 180) * 60, duration: 1, ease: "power2.inOut" });
+      gsap.to(state, { scatterProgress: 0, duration: 1, ease: "power2.inOut" });
 
       const children = photoGroupRef.current!.children;
       const count = children.length;
