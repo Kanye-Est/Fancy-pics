@@ -591,7 +591,6 @@ export default function App() {
       ease: "power2.inOut"
     });
     gsap.to(mesh.scale, { x: 1, y: 1, z: 1, duration: 0.5, ease: "power2.inOut" });
-    gsap.to(mesh.material, { opacity: 0.8, duration: 0.5 });
     zoomedPhotoDataRef.current = null;
   };
 
@@ -616,28 +615,37 @@ export default function App() {
       return;
     }
     
+    const prevState = state.currentState;
     state.currentState = newState;
-    
-    if (newState === 'CLOSED') {
-      gsap.to(state, { shellOpenAngle: 0, duration: 1.5, ease: "power2.inOut" });
-      gsap.to(state, { scatterProgress: 0, duration: 2, ease: "power2.inOut" });
-      gsap.to(state, { bloomIntensity: 0.2, duration: 1 });
 
-      // Fade pearl back in
+    if (newState === 'CLOSED') {
+      // When closing from OPEN/PHOTO_ZOOM, reverse the open sequence:
+      // first fade out photos, then close shell and fade pearl back in
+      const photosVisible = prevState === 'OPEN' || prevState === 'PHOTO_ZOOM';
+      const shellDelay = photosVisible ? 1.5 : 0;
+
+      gsap.to(state, { shellOpenAngle: 0, duration: 1.5, delay: shellDelay, ease: "power2.inOut" });
+      gsap.to(state, { scatterProgress: 0, duration: 2, ease: "power2.inOut" });
+      gsap.to(state, { bloomIntensity: 0.2, duration: 1, delay: shellDelay });
+
+      // Fade pearl back in (after photos are gone)
       if (pearlRef.current) {
-        gsap.to(pearlRef.current.material, { opacity: 1, duration: 1.5 });
+        gsap.to(pearlRef.current.material, { opacity: 1, duration: 1.5, delay: shellDelay });
       }
 
+      // Fade out photos first
       if (photoGroupRef.current) {
         photoGroupRef.current.children.forEach(child => {
-          gsap.to((child as THREE.Mesh).material, { opacity: 0, duration: 1 });
+          const mat = (child as THREE.Mesh).material;
+          gsap.killTweensOf(mat, 'opacity');
+          gsap.to(mat, { opacity: 0, duration: 1 });
         });
       }
-      
+
       if (cameraRef.current && controlsRef.current) {
         isAnimatingCameraRef.current = true;
-        gsap.to(cameraRef.current.position, { x: 0, y: 0, z: 40, duration: 2 });
-        gsap.to(controlsRef.current.target, { x: 0, y: 0, z: 0, duration: 2, onComplete: () => { isAnimatingCameraRef.current = false; } });
+        gsap.to(cameraRef.current.position, { x: 0, y: 0, z: 40, duration: 2, delay: shellDelay });
+        gsap.to(controlsRef.current.target, { x: 0, y: 0, z: 0, duration: 2, delay: shellDelay, onComplete: () => { isAnimatingCameraRef.current = false; } });
       }
     } 
     else if (newState === 'OPEN') {
