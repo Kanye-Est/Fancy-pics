@@ -575,8 +575,11 @@ export default function App() {
         
         group.add(mesh);
         
-        if (stateRef.current.currentState === 'PHOTO_ZOOM') {
-          mat.opacity = 1; // Set directly to avoid animation issues on load
+        const currentState = stateRef.current.currentState;
+        if (currentState === 'OPEN') {
+          mat.opacity = 1;
+        } else if (currentState === 'PHOTO_ZOOM') {
+          mat.opacity = 0.3;
         }
       }, undefined, (err) => {
         console.error("Failed to load photo texture:", err);
