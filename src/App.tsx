@@ -493,7 +493,23 @@ export default function App() {
         }
       }
       
+      // Pass 1: Bloom on shell/particles/pearl (exclude photos on layer 1)
+      camera.layers.set(0);
       composer.render();
+
+      // Pass 2: Render photos without bloom
+      if (photoGroupRef.current && photoGroupRef.current.children.length > 0) {
+        camera.layers.set(1);
+        renderer.autoClear = false;
+        renderer.clearDepth();
+        const bg = scene.background;
+        scene.background = null;
+        renderer.render(scene, camera);
+        scene.background = bg;
+        renderer.autoClear = true;
+      }
+
+      camera.layers.enableAll();
     };
     
     animate();
@@ -541,10 +557,10 @@ export default function App() {
           opacity: 0.0,
           depthWrite: false, // Prevent z-fighting with particles
           fog: false, // Ensure photos are not hidden by the scene fog
-          toneMapped: false, // Preserve original photo colors, bypass bloom tone mapping
         });
         const mesh = new THREE.Mesh(geo, mat);
-        
+        mesh.layers.set(1); // Exclude from bloom pass (layer 0)
+
         // Position inside the shell
         const angle = Math.random() * Math.PI * 2;
         const radius = 6 + Math.random() * 4;
