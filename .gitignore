@@ -1,8 +1,36 @@
+# Dependencies
 node_modules/
+
+# Build output
 build/
 dist/
-coverage/
-.DS_Store
-*.log
-.env*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Keep the example
 !.env.example
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Misc
+*.tgz
+.cache/
