@@ -211,7 +211,7 @@ export default function App() {
     sceneRef.current = scene;
     
     const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 40); // Moved back to see the whole shell clearly
+    camera.position.set(0, 0, 60); // Moved back to see the whole shell clearly
     cameraRef.current = camera;
     
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -249,7 +249,8 @@ export default function App() {
     const shellGroup = new THREE.Group();
     scene.add(shellGroup);
     shellGroupRef.current = shellGroup;
-    
+    shellGroup.scale.set(0.7, 0.7, 0.7);
+
     // --- Create Pearl ---
     const pearlGeo = new THREE.SphereGeometry(1.5, 64, 64);
     const pearlMat = new THREE.MeshPhysicalMaterial({
@@ -668,7 +669,7 @@ export default function App() {
 
       if (cameraRef.current && controlsRef.current) {
         isAnimatingCameraRef.current = true;
-        gsap.to(cameraRef.current.position, { x: 0, y: 0, z: 40, duration: 2, delay: shellDelay });
+        gsap.to(cameraRef.current.position, { x: 0, y: 0, z: 60, duration: 2, delay: shellDelay });
         gsap.to(controlsRef.current.target, { x: 0, y: 0, z: 0, duration: 2, delay: shellDelay, onComplete: () => { isAnimatingCameraRef.current = false; } });
       }
     } 
@@ -713,7 +714,7 @@ export default function App() {
 
       if (cameraRef.current && controlsRef.current) {
         isAnimatingCameraRef.current = true;
-        gsap.to(cameraRef.current.position, { x: 0, y: 5, z: 50, duration: 2 });
+        gsap.to(cameraRef.current.position, { x: 0, y: 5, z: 70, duration: 2 });
         gsap.to(controlsRef.current.target, { x: 0, y: 0, z: 0, duration: 2, onComplete: () => { isAnimatingCameraRef.current = false; } });
       }
     }
