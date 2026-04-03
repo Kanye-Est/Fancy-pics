@@ -1,6 +1,6 @@
 {
-  "name": "Pearl & Shell Interactive",
-  "description": "A 3D interactive particle system featuring a glowing pearl inside a shell, controlled by hand gestures using MediaPipe.",
+  "name": "Fancy Pics",
+  "description": "A 3D interactive photo gallery inside a particle shell, controlled by hand gestures via MediaPipe.",
   "requestFramePermissions": [
     "camera"
   ]

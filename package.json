@@ -1,7 +1,8 @@
 {
   "name": "fancy-pics",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A 3D interactive photo gallery inside a particle shell, controlled by hand gestures",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
